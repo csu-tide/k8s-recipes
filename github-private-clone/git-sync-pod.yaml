@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Pod 
+metadata:
+  name: git-sync-example
+spec:
+  securityContext:
+    fsGroup: 100
+  volumes:
+    - name: git-repo
+      emptyDir: {}
+  tolerations:
+    - key: nautilus.io/reservation
+      operator: Equal
+      value: csu-tide
+      effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: nautilus.io/csu-tide
+                operator: Exists
+  initContainers:
+    - name: git-sync
+      image: registry.k8s.io/git-sync/git-sync:v4.0.0
+      args:
+        - --repo=https://github.com/kkrick-sdsu/private-test.git 
+        - --depth=1
+        - --one-time
+        - --link=current
+        - --root=/src
+        - --username=kkrick-sdsu
+      env:
+        - name: GITSYNC_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: git-password
+              key: git-password
+      resources:
+        limits:
+          cpu: 1
+          memory: 1Gi 
+        requests:
+          cpu: 1
+          memory: 1Gi 
+      volumeMounts:
+        - name: git-repo
+          mountPath: /src
+  containers:
+    - name: git-sync-pod
+      image: ghcr.io/sdsu-research-ci/coder-images/minimal-notebook:2026-01-12
+      command: ["/bin/bash", "-c", "sleep 3600"]
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 2
+          memory: 4Gi
+      securityContext:
+          runAsUser: 0
+      env:
+        - name: GRANT_SUDO
+          value: "yes"
+      volumeMounts:
+        - name: git-repo
+          mountPath: /home/jovyan/src
+
